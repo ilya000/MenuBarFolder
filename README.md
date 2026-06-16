@@ -37,7 +37,15 @@ menu bar every single day. An experiment that turned out genuinely handy.
   forget it.
 - **No Dock icon, no window clutter.** One quiet process runs the whole show.
 
-## Get it running
+## Download
+
+**[Download MenuBarFolder 1.0.0 (.dmg)](https://github.com/ilya000/MenuBarFolder/releases/latest)**
+— signed with a Developer ID and notarized by Apple. macOS 13+.
+
+Install: open the DMG and drag **MenuBarFolder** to Applications, then launch it
+and pick a folder to pin. Also at [ctrl8.com/MenuBarFolder](http://ctrl8.com/MenuBarFolder).
+
+## Build from source
 
 You'll need macOS 13+ and a Swift toolchain (Xcode, or the command-line tools).
 
