@@ -1,17 +1,22 @@
 # MenuBarFolder 📁
 
-**A folder that lives in your menu bar — and is perfectly happy about it.**
+**Keep your most-used folders one click away — right in the macOS menu bar.**
 
-You know that one folder you open forty times a day? Downloads. Screenshots.
-That sacred pile of "I'll sort this later." MenuBarFolder pins it (or several of
-them) right into your menu bar, so it's always one click away — no Finder
-window, no Spotlight gymnastics, no `cd` into the void.
+We all have *that* folder. Downloads. Screenshots. The desktop graveyard of
+"I'll sort this later." You open it dozens of times a day, and every time it's
+the same little ritual: find a Finder window, click around, sigh.
 
-It's a small, slightly silly, genuinely useful experiment. Nothing more,
-nothing less.
+MenuBarFolder turns that ritual into a single click. Pin any folder — or several
+— to your menu bar, and its contents are always a tap away: open files in their
+default app, walk into subfolders through nested submenus, all without a Finder
+window in sight. Each pinned folder gets its own tidy icon, and the whole setup
+is remembered across reboots.
 
-> Home: **http://ctrl8.com/MenuBarFolder** · by **iLya Os**
-> (github.com/ilya000) · **MIT** licensed · made for macOS
+It's deliberately small and a little playful, but it earns its place in the
+menu bar every single day. An experiment that turned out genuinely handy.
+
+> 🏠 **http://ctrl8.com/MenuBarFolder** · ✍️ **iLya Os** (github.com/ilya000) ·
+> ⚖️ **MIT** · 🍎 macOS 13+
 
 ---
 
