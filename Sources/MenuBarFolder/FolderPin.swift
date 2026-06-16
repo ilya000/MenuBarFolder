@@ -70,15 +70,22 @@ final class FolderPin: NSObject, NSMenuDelegate {
     private func layout(_ menu: NSMenu) {
         menu.removeAllItems()
 
-        // Header — pinned folder name + icon.
-        let header = NSMenuItem(title: url.displayName, action: nil, keyEquivalent: "")
-        header.isEnabled = false
-        header.image = NSWorkspace.shared.icon(forFile: url.path)
-        header.image?.size = NSSize(width: 16, height: 16)
-        menu.addItem(header)
+        // 1. App submenu at the very top — every program-level item lives here,
+        //    so reaching Settings / Quit never means scrolling past the file list.
+        menu.addItem(makeAppMenuItem())
         menu.addItem(.separator())
 
-        // Contents (cache → instant, else placeholder).
+        // 2. The folder itself — name + icon, clicking it opens it in Finder.
+        let folderItem = NSMenuItem(title: url.displayName,
+                                    action: #selector(openInFinder), keyEquivalent: "")
+        folderItem.target = self
+        folderItem.image = NSWorkspace.shared.icon(forFile: url.path)
+        folderItem.image?.size = NSSize(width: 16, height: 16)
+        folderItem.toolTip = "Open “\(url.displayName)” in Finder"
+        menu.addItem(folderItem)
+        menu.addItem(.separator())
+
+        // 3. Folder contents (cache → instant, else placeholder).
         if let listing {
             for item in contentDelegate.buildItems(from: listing) { menu.addItem(item) }
         } else {
@@ -86,23 +93,44 @@ final class FolderPin: NSObject, NSMenuDelegate {
             loading.isEnabled = false
             menu.addItem(loading)
         }
+    }
 
-        menu.addItem(.separator())
-        addItem(to: menu, title: "Open “\(url.displayName)” in Finder", action: #selector(openInFinder))
+    /// The top "MenuBarFolder ▸" item whose submenu holds the program controls.
+    private func makeAppMenuItem() -> NSMenuItem {
+        let appItem = NSMenuItem(title: "MenuBarFolder", action: nil, keyEquivalent: "")
+        appItem.image = AppIcon.make(size: 36)
+        appItem.image?.size = NSSize(width: 18, height: 18)
 
-        // Everything else (add/change/remove folders, sort, grouping, login)
-        // lives in the Settings window.
-        menu.addItem(.separator())
+        let appMenu = NSMenu()
+
         let settings = NSMenuItem(title: "Settings…",
                                   action: #selector(AppDelegate.openSettings),
                                   keyEquivalent: ",")
         settings.target = app
-        menu.addItem(settings)
+        appMenu.addItem(settings)
 
-        menu.addItem(.separator())
-        let quit = NSMenuItem(title: "Quit MenuBarFolder",
-                              action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        menu.addItem(quit)
+        appMenu.addItem(.separator())
+
+        // Open one more menu-bar folder.
+        let add = NSMenuItem(title: "Open Another Folder…",
+                             action: #selector(openAnother), keyEquivalent: "n")
+        add.target = self
+        appMenu.addItem(add)
+
+        // Close JUST this icon (program keeps running for the others).
+        let close = NSMenuItem(title: "Close This Folder",
+                               action: #selector(closeThis), keyEquivalent: "w")
+        close.target = self
+        appMenu.addItem(close)
+
+        appMenu.addItem(.separator())
+
+        // Quit the whole program (all icons).
+        appMenu.addItem(NSMenuItem(title: "Quit MenuBarFolder",
+                                   action: #selector(NSApplication.terminate(_:)),
+                                   keyEquivalent: "q"))
+        appItem.submenu = appMenu
+        return appItem
     }
 
     private func addItem(to menu: NSMenu, title: String, action: Selector) {
@@ -114,4 +142,6 @@ final class FolderPin: NSObject, NSMenuDelegate {
     // MARK: actions (pin-specific)
 
     @objc private func openInFinder() { NSWorkspace.shared.open(url) }
+    @objc private func openAnother()  { app?.addFolderViaPicker() }
+    @objc private func closeThis()    { app?.closePin(self) }
 }

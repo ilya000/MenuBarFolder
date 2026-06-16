@@ -5,3 +5,6 @@
 *.swp
 xcuserdata/
 DerivedData/
+
+# build output
+dist/

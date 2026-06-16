@@ -152,12 +152,10 @@ private struct GeneralSettingsTab: View {
 struct AboutView: View {
     var body: some View {
         VStack(spacing: 14) {
-            Image(nsImage: StatusIcon.make(letters: "Fo"))
+            Image(nsImage: AppIcon.make(size: 128))
                 .resizable()
-                .renderingMode(.template)
                 .aspectRatio(contentMode: .fit)
-                .frame(width: 64, height: 52)
-                .foregroundStyle(.secondary)
+                .frame(width: 88, height: 88)
 
             VStack(spacing: 3) {
                 Text(AppInfo.name).font(.title2).bold()

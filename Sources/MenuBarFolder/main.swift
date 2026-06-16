@@ -93,6 +93,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         tearDown(pin)
     }
 
+    /// Close ONE menu-bar icon (the folder is unpinned, but the program keeps
+    /// running for the other icons). Distinct from Quit. If it was the last
+    /// icon there's nothing left to show, so the app quits.
+    func closePin(_ pin: FolderPin) {
+        store.remove(pin.url)
+        tearDown(pin)
+        if pins.isEmpty { NSApp.terminate(nil) }
+    }
+
     /// Drop every icon's cached listing so the next open re-reads with the
     /// updated sort / grouping preference.
     func invalidateAllCaches() {
@@ -134,6 +143,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 // MARK: - main
 
 MainActor.assumeIsolated {
+    // Build-time helper: `MenuBarFolder --export-icon <path.png>` renders the
+    // app icon to a PNG and exits, so the packaging script can derive the
+    // .icns from the same drawing code (single source of truth). No GUI.
+    let args = CommandLine.arguments
+    if let i = args.firstIndex(of: "--export-icon"), i + 1 < args.count {
+        let out = URL(fileURLWithPath: args[i + 1])
+        let img = AppIcon.make(size: 1024)
+        if let tiff = img.tiffRepresentation,
+           let rep = NSBitmapImageRep(data: tiff),
+           let png = rep.representation(using: .png, properties: [:]) {
+            try? png.write(to: out)
+            exit(0)
+        }
+        exit(1)
+    }
+
     let app = NSApplication.shared
     let delegate = AppDelegate()
     app.delegate = delegate
