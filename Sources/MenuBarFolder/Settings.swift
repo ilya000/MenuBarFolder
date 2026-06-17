@@ -17,37 +17,37 @@ final class SettingsModel: ObservableObject {
 
     private weak var app: AppDelegate?
 
-    @Published var sortMode: SortMode
-    @Published var foldersOnTop: Bool
     @Published var startAtLogin: Bool
     @Published var folders: [URL]
+    @Published var bookmarks: [BookmarkSource]
 
     init(app: AppDelegate) {
         self.app = app
-        self.sortMode = AppPrefs.sortMode
-        self.foldersOnTop = AppPrefs.foldersOnTop
         self.startAtLogin = LoginItem.isEnabled
         self.folders = app.pinnedFolders
+        self.bookmarks = app.bookmarkSources
+        // Live-refresh the lists when pins are added/removed from a menu.
+        NotificationCenter.default.addObserver(forName: .mbfPinsChanged, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.reloadLists() }
+        }
     }
 
-    /// Re-pull state from the app/prefs when the window is re-shown.
+    /// Re-pull state when the window is re-shown.
     func reload() {
-        sortMode = AppPrefs.sortMode
-        foldersOnTop = AppPrefs.foldersOnTop
         startAtLogin = LoginItem.isEnabled
+        reloadLists()
+    }
+
+    func reloadLists() {
         folders = app?.pinnedFolders ?? []
+        bookmarks = app?.bookmarkSources ?? []
     }
 
-    func setSort(_ mode: SortMode) {
-        sortMode = mode
-        AppPrefs.sortMode = mode
-        app?.invalidateAllCaches()
-    }
-
-    func setFoldersOnTop(_ on: Bool) {
-        foldersOnTop = on
-        AppPrefs.foldersOnTop = on
-        app?.invalidateAllCaches()
+    /// Display label for a bookmark source: "Browser · Profile".
+    func label(for source: BookmarkSource) -> String {
+        let browser = Browser.by(id: source.browserID)
+        let name = browser?.profiles().profiles.first { $0.dir == source.profileDir }?.name ?? source.profileDir
+        return "\(browser?.name ?? source.browserID) · \(name)"
     }
 
     func setStartAtLogin(_ on: Bool) {
@@ -55,15 +55,27 @@ final class SettingsModel: ObservableObject {
         startAtLogin = ok ? on : LoginItem.isEnabled
     }
 
+    // Sort order and folder grouping are now per-instance — set from each
+    // folder's own "Display" submenu, not here.
+
     func addFolder() {
         _ = app?.addFolderViaPicker()
-        folders = app?.pinnedFolders ?? []
+        reloadLists()
     }
 
     func remove(_ url: URL) {
-        guard folders.count > 1 else { return }   // keep at least one icon
         app?.removeFolderURL(url)
-        folders = app?.pinnedFolders ?? []
+        reloadLists()
+    }
+
+    func addBookmarks() {
+        app?.addBookmarksViaChooser()
+        // The chooser adds asynchronously and posts .mbfPinsChanged on add.
+    }
+
+    func removeBookmark(_ source: BookmarkSource) {
+        app?.removeBookmarkSource(source)
+        reloadLists()
     }
 }
 
@@ -86,6 +98,7 @@ struct SettingsView: View {
 private struct GeneralSettingsTab: View {
     @ObservedObject var model: SettingsModel
     @State private var selection: URL?
+    @State private var bmSelection: BookmarkSource?
 
     var body: some View {
         Form {
@@ -106,29 +119,34 @@ private struct GeneralSettingsTab: View {
                         .tag(url)
                     }
                 }
-                .frame(minHeight: 140)
+                .frame(minHeight: 110)
 
                 HStack {
                     Button("Add Folder…") { model.addFolder() }
                     Button("Remove") {
                         if let sel = selection { model.remove(sel); selection = nil }
                     }
-                    .disabled(selection == nil || model.folders.count <= 1)
+                    .disabled(selection == nil)
                     Spacer()
                 }
             }
 
-            Section("Display") {
-                Picker("Sort by", selection: Binding(
-                    get: { model.sortMode },
-                    set: { model.setSort($0) })) {
-                    ForEach(SortMode.allCases, id: \.self) { mode in
-                        Text(mode.title).tag(mode)
+            Section("Browser bookmarks") {
+                List(selection: $bmSelection) {
+                    ForEach(model.bookmarks) { source in
+                        Text(model.label(for: source)).tag(source)
                     }
                 }
-                Toggle("Folders on top", isOn: Binding(
-                    get: { model.foldersOnTop },
-                    set: { model.setFoldersOnTop($0) }))
+                .frame(minHeight: 90)
+
+                HStack {
+                    Button("Add Bookmarks…") { model.addBookmarks() }
+                    Button("Remove") {
+                        if let sel = bmSelection { model.removeBookmark(sel); bmSelection = nil }
+                    }
+                    .disabled(bmSelection == nil)
+                    Spacer()
+                }
             }
 
             Section("General") {
@@ -177,6 +195,7 @@ struct AboutView: View {
                 LabeledLink(label: "Home", title: AppInfo.homepage, url: AppInfo.homepage)
                 LabeledLink(label: "Author", title: "\(AppInfo.author) · github.com/ilya000",
                             url: AppInfo.github)
+                LabeledLink(label: "Heritage", title: AppInfo.heritageTitle, url: AppInfo.heritageURL)
                 HStack(spacing: 6) {
                     Text("License").foregroundStyle(.secondary)
                     Text("\(AppInfo.license) — free and open source")

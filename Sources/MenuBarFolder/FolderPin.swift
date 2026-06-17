@@ -2,29 +2,28 @@
 //  FolderPin.swift
 //  MenuBarFolder
 //
-//  One pinned folder = one menu-bar status item with its own dropdown.
-//  Owns the status item, its menu, the lazy content delegate, and a cache
-//  of the folder's last read so re-opening is instant while a fresh read
-//  runs in the background.
+//  One pinned folder = one menu-bar status item with its own dropdown and its
+//  OWN display settings (sort order + folder grouping), persisted per folder.
 //
 
 import AppKit
 
 @MainActor
-final class FolderPin: NSObject, NSMenuDelegate {
+final class FolderPin: BasePin, NSMenuDelegate {
 
     let url: URL
-    private weak var app: AppDelegate?
-    private let statusItem: NSStatusItem
+    private let id: String                       // persistence key (folder path)
     private let contentDelegate: FolderMenuDelegate
+    private var options: DisplayOptions
     private var listing: DirListing?
 
     init(url: URL, app: AppDelegate) {
         self.url = url
-        self.app = app
-        self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        self.id = url.standardizedFileURL.path
         self.contentDelegate = FolderMenuDelegate(url: url, owner: app)
-        super.init()
+        self.options = InstancePrefs.options(for: id)
+        super.init(app: app)
+        contentDelegate.options = options
 
         if let button = statusItem.button {
             button.imagePosition = .imageOnly
@@ -37,15 +36,8 @@ final class FolderPin: NSObject, NSMenuDelegate {
         statusItem.menu = menu
     }
 
-    /// Remove this icon from the menu bar.
-    func teardown() {
-        NSStatusBar.system.removeStatusItem(statusItem)
-    }
-
-    /// Drop the cached contents so the next open re-reads with current prefs.
-    func clearCache() {
-        listing = nil
-    }
+    /// Drop the cached contents so the next open re-reads with current options.
+    override func clearCache() { listing = nil }
 
     // MARK: NSMenuDelegate
 
@@ -54,12 +46,10 @@ final class FolderPin: NSObject, NSMenuDelegate {
         layout(menu)
     }
 
-    /// Read the folder off the main thread; re-render when it lands so even a
-    /// huge pinned folder never freezes the menu.
     private func refreshListing() {
         let url = self.url
         let maxItems = contentDelegate.maxItems
-        let options = AppPrefs.displayOptions
+        let options = self.options
         Task { @MainActor in
             let fresh = await FolderMenuDelegate.readListing(url, maxItems: maxItems, options: options)
             self.listing = fresh
@@ -70,13 +60,12 @@ final class FolderPin: NSObject, NSMenuDelegate {
     private func layout(_ menu: NSMenu) {
         menu.removeAllItems()
 
-        // 1. App submenu at the very top — every program-level item lives here,
-        //    so reaching Settings / Quit never means scrolling past the file list.
+        // 1. App submenu (program controls).
         menu.addItem(makeAppMenuItem())
         menu.addItem(.separator())
 
-        // 2. The folder itself — name + icon, clicking it opens it in Finder.
-        let folderItem = NSMenuItem(title: url.displayName,
+        // 2. The folder itself (click → Finder) + its own Display settings.
+        let folderItem = NSMenuItem(title: url.displayName.ellipsizedMenuTitle(),
                                     action: #selector(openInFinder), keyEquivalent: "")
         folderItem.target = self
         folderItem.image = NSWorkspace.shared.icon(forFile: url.path)
@@ -95,53 +84,46 @@ final class FolderPin: NSObject, NSMenuDelegate {
         }
     }
 
-    /// The top "MenuBarFolder ▸" item whose submenu holds the program controls.
-    private func makeAppMenuItem() -> NSMenuItem {
-        let appItem = NSMenuItem(title: "MenuBarFolder", action: nil, keyEquivalent: "")
-        appItem.image = AppIcon.make(size: 36)
-        appItem.image?.size = NSSize(width: 18, height: 18)
-
-        let appMenu = NSMenu()
-
-        let settings = NSMenuItem(title: "Settings…",
-                                  action: #selector(AppDelegate.openSettings),
-                                  keyEquivalent: ",")
-        settings.target = app
-        appMenu.addItem(settings)
-
-        appMenu.addItem(.separator())
-
-        // Open one more menu-bar folder.
-        let add = NSMenuItem(title: "Open Another Folder…",
-                             action: #selector(openAnother), keyEquivalent: "n")
-        add.target = self
-        appMenu.addItem(add)
-
-        // Close JUST this icon (program keeps running for the others).
-        let close = NSMenuItem(title: "Close This Folder",
-                               action: #selector(closeThis), keyEquivalent: "w")
-        close.target = self
-        appMenu.addItem(close)
-
-        appMenu.addItem(.separator())
-
-        // Quit the whole program (all icons).
-        appMenu.addItem(NSMenuItem(title: "Quit MenuBarFolder",
-                                   action: #selector(NSApplication.terminate(_:)),
-                                   keyEquivalent: "q"))
-        appItem.submenu = appMenu
-        return appItem
+    /// This folder's own sort + grouping, shown as a section in the
+    /// MenuBarFolder submenu.
+    override func displaySectionItems() -> [NSMenuItem] {
+        var items: [NSMenuItem] = []
+        let sortHeader = NSMenuItem(title: "Sort by", action: nil, keyEquivalent: "")
+        sortHeader.isEnabled = false
+        items.append(sortHeader)
+        for mode in SortMode.allCases {
+            let mi = NSMenuItem(title: mode.title, action: #selector(setSort(_:)), keyEquivalent: "")
+            mi.target = self
+            mi.representedObject = mode.rawValue
+            mi.state = (mode == options.sort) ? .on : .off
+            items.append(mi)
+        }
+        let fot = NSMenuItem(title: "Folders on top",
+                             action: #selector(toggleFoldersOnTop), keyEquivalent: "")
+        fot.target = self
+        fot.state = options.foldersOnTop ? .on : .off
+        items.append(fot)
+        return items
     }
 
-    private func addItem(to menu: NSMenu, title: String, action: Selector) {
-        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
-        item.target = self
-        menu.addItem(item)
-    }
-
-    // MARK: actions (pin-specific)
+    // MARK: actions
 
     @objc private func openInFinder() { NSWorkspace.shared.open(url) }
-    @objc private func openAnother()  { app?.addFolderViaPicker() }
-    @objc private func closeThis()    { app?.closePin(self) }
+
+    @objc private func setSort(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let mode = SortMode(rawValue: raw) else { return }
+        options.sort = mode
+        persistOptions()
+    }
+
+    @objc private func toggleFoldersOnTop() {
+        options.foldersOnTop.toggle()
+        persistOptions()
+    }
+
+    private func persistOptions() {
+        InstancePrefs.set(options, for: id)
+        contentDelegate.options = options
+        listing = nil   // re-read with the new order on next open
+    }
 }

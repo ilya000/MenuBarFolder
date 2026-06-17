@@ -26,7 +26,12 @@ menu bar every single day. An experiment that turned out genuinely handy.
   glyph wearing the folder's first two letters like a name tag (`Ap` for
   *Applications*, `Do` for *Downloads*, and so on).
 - **Click a file, it opens** — just like a Finder double-click. Subfolders
-  unfold into nested submenus, as deep as you need to go.
+  unfold into nested submenus, as deep as you need to go. Hold **Option** to
+  reveal a file in Finder instead.
+- **Browser bookmarks too.** Pin a Chrome / Brave / Edge / Vivaldi profile and
+  browse its bookmark tree from the menu bar — with favicons. Clicking a
+  bookmark opens it in that browser; Option copies the link. Multiple profiles
+  of one browser get distinct two-letter badges.
 - **Handles huge folders.** A folder with 40,000 photos from the last decade?
   It reads in the background (no beachball freeze), caches what it found, and
   shows the first 250 — the rest fold into a single *"open in Finder"* line.
@@ -39,7 +44,7 @@ menu bar every single day. An experiment that turned out genuinely handy.
 
 ## Download
 
-**[Download MenuBarFolder 1.0.0 (.dmg)](https://github.com/ilya000/MenuBarFolder/releases/latest)**
+**[Download MenuBarFolder (.dmg)](https://github.com/ilya000/MenuBarFolder/releases/latest)**
 — signed with a Developer ID and notarized by Apple. macOS 13+.
 
 Install: open the DMG and drag **MenuBarFolder** to Applications, then launch it
@@ -106,6 +111,15 @@ Everything else — the folder list, sorting, grouping, Start at Login, and an
 | `StatusIcon.swift` | Draws the folder-with-two-letters icon. |
 | `Settings.swift` | Settings window and About tab (SwiftUI). |
 | `AppInfo.swift` | App identity shown in About. |
+
+## Heritage
+
+MenuBarFolder is the spiritual successor to **TrayMenu (1998)** — a Win95 /
+Windows NT utility I wrote that put a fully customizable pop-up menu anywhere on
+screen, including the system tray (next to the clock and keyboard switcher),
+with directory submenus. Same idea, ~28 years later, native to the macOS menu
+bar. The original still lives on my restored 1998 site:
+[old.osipov.ru/proge.htm](https://old.osipov.ru/proge.htm).
 
 ## Status
 

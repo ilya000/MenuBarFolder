@@ -55,6 +55,10 @@ final class FolderMenuDelegate: NSObject, NSMenuDelegate {
     /// read runs in the background.
     private var cache: DirListing?
 
+    /// Display options inherited from the owning folder pin (so a subfolder
+    /// sorts the same way as its top-level folder).
+    var options: DisplayOptions = .default
+
     init(url: URL, owner: AppDelegate?) {
         self.url = url
         self.owner = owner
@@ -77,7 +81,7 @@ final class FolderMenuDelegate: NSObject, NSMenuDelegate {
 
         let url = self.url
         let maxItems = self.maxItems
-        let options = AppPrefs.displayOptions
+        let options = self.options
         // `readListing` is nonisolated+async, so the filesystem work runs off
         // the main actor; only the result re-enters main to render. `menu`
         // never leaves the main actor, so there's no Sendable hazard.
@@ -202,11 +206,16 @@ final class FolderMenuDelegate: NSObject, NSMenuDelegate {
                 // Submenu, populated lazily by its own delegate.
                 let submenu = NSMenu(title: entry.url.displayName)
                 let delegate = FolderMenuDelegate(url: entry.url, owner: owner)
+                delegate.options = options   // subfolders inherit this folder's sort/grouping
                 submenu.delegate = delegate
                 childDelegates.append(delegate)
                 item.submenu = submenu
+                items.append(item)
+            } else {
+                items.append(item)
+                // Hold Option to reveal the file in Finder instead of opening.
+                items.append(makeRevealAlternate(for: entry.url))
             }
-            items.append(item)
         }
 
         if listing.hidden > 0 {
@@ -224,12 +233,27 @@ final class FolderMenuDelegate: NSObject, NSMenuDelegate {
     // MARK: - helpers
 
     private func makeItem(for fileURL: URL) -> NSMenuItem {
-        let item = NSMenuItem(title: fileURL.displayName,
+        let name = fileURL.displayName
+        let item = NSMenuItem(title: name.ellipsizedMenuTitle(),
                               action: #selector(AppDelegate.openItem(_:)),
                               keyEquivalent: "")
         item.target = owner
         item.representedObject = fileURL
         item.image = Self.icon(for: fileURL)
+        item.keyEquivalentModifierMask = []   // so the Option-alternate groups correctly
+        if name.count > String.menuTitleLimit { item.toolTip = name }
+        return item
+    }
+
+    /// Hidden sibling shown while Option is held: "Reveal in Finder".
+    private func makeRevealAlternate(for fileURL: URL) -> NSMenuItem {
+        let item = NSMenuItem(title: "Reveal in Finder",
+                              action: #selector(AppDelegate.revealItem(_:)), keyEquivalent: "")
+        item.target = owner
+        item.representedObject = fileURL
+        item.image = Self.icon(for: fileURL)
+        item.isAlternate = true
+        item.keyEquivalentModifierMask = [.option]
         return item
     }
 
@@ -243,6 +267,18 @@ final class FolderMenuDelegate: NSObject, NSMenuDelegate {
         let icon = NSWorkspace.shared.icon(forFile: url.path)
         icon.size = NSSize(width: 16, height: 16)
         return icon
+    }
+}
+
+extension String {
+    /// Max characters shown for a menu title before truncation.
+    static let menuTitleLimit = 30
+
+    /// Trim to `menuTitleLimit` characters with a single ellipsis, so one long
+    /// file/bookmark name can't blow the menu up to full-screen width.
+    func ellipsizedMenuTitle() -> String {
+        guard count > Self.menuTitleLimit else { return self }
+        return prefix(Self.menuTitleLimit).trimmingCharacters(in: .whitespaces) + "…"
     }
 }
 
